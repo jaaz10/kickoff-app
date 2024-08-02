@@ -1,70 +1,210 @@
-import { Image, StyleSheet, Platform } from 'react-native';
+import React, { useEffect, useState } from "react";
+import { View, Text, TouchableOpacity, StyleSheet, Modal } from "react-native";
+import MapView, { Marker } from "react-native-maps";
+import * as Location from "expo-location";
+import * as Notifications from "expo-notifications";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Checkbox } from "react-native-paper";
 
-import { HelloWave } from '@/components/HelloWave';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
+const Index = () => {
+  const [userLocation, setUserLocation] = useState(null);
+  const [errorMsg, setErrorMsg] = useState(null);
+  const [showModal, setShowModal] = useState(true);
+  const [dontAskAgain, setDontAskAgain] = useState(false);
 
-export default function HomeScreen() {
+  useEffect(() => {
+    const requestLocationPermission = async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted") {
+          setErrorMsg("Permission to access location was denied");
+          return;
+        }
+
+        const currentLocation = await Location.getCurrentPositionAsync({});
+        setUserLocation(currentLocation.coords);
+      } catch (error) {
+        setErrorMsg("Error retrieving location");
+        console.error("Error retrieving location:", error);
+      }
+    };
+
+    requestLocationPermission();
+  }, []);
+
+  useEffect(() => {
+    const checkShowModal = async () => {
+      const shouldShow = await AsyncStorage.getItem("showModal");
+      if (shouldShow === null) {
+        setShowModal(true);
+      } else {
+        setShowModal(false);
+      }
+    };
+
+    checkShowModal();
+  }, []);
+
+  const handlePlayNow = async () => {
+    if (userLocation) {
+      try {
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: "Playing at the Park",
+            body: "I'm currently playing soccer at this location!",
+            data: { location: userLocation },
+          },
+          trigger: null,
+        });
+        console.log("Notification sent");
+      } catch (error) {
+        console.error("Error sending notification:", error);
+      }
+    } else {
+      setErrorMsg("Unable to send notification. Please try again.");
+    }
+  };
+
+  const handleCloseModal = async () => {
+    setShowModal(false);
+    if (dontAskAgain) {
+      await AsyncStorage.setItem("showModal", "false");
+    }
+  };
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({ ios: 'cmd + d', android: 'cmd + m' })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-        <ThemedText>
-          Tap the Explore tab to learn more about what's included in this starter app.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          When you're ready, run{' '}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+    <View style={styles.container}>
+      {userLocation ? (
+        <MapView
+          style={styles.map}
+          initialRegion={{
+            latitude: userLocation.latitude,
+            longitude: userLocation.longitude,
+            latitudeDelta: 0.0922,
+            longitudeDelta: 0.0421,
+          }}
+        >
+          <Marker coordinate={userLocation} title="You are here" />
+        </MapView>
+      ) : (
+        <View style={styles.map}>
+          <Text>Loading map...</Text>
+          {errorMsg && <Text style={styles.errorMsg}>{errorMsg}</Text>}
+        </View>
+      )}
+      <View style={styles.overlay}>
+        <TouchableOpacity style={styles.button} onPress={handlePlayNow}>
+          <Text style={styles.buttonText}>I'm Playing Now!</Text>
+        </TouchableOpacity>
+      </View>
+      <Modal visible={showModal} animationType="slide" transparent={true}>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Welcome to Kickoff!</Text>
+            <Text style={styles.modalText}>1. Select your location</Text>
+            <Text style={styles.modalText}>
+              2. Tap "I'm Playing Now!" to send a notification
+            </Text>
+            <View style={styles.modalCheckboxContainer}>
+              <Checkbox
+                status={dontAskAgain ? "checked" : "unchecked"}
+                onPress={() => setDontAskAgain(!dontAskAgain)}
+              />
+              <Text style={styles.modalCheckboxLabel}>Don't ask me again</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={handleCloseModal}
+            >
+              <Text style={styles.modalButtonText}>Got it!</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  container: {
+    flex: 1,
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  map: {
+    width: "100%",
+    height: "100%",
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
+  errorMsg: {
+    color: "red",
+    fontSize: 16,
+    marginTop: 10,
+  },
+  overlay: {
+    position: "absolute",
+    bottom: 20,
     left: 0,
-    position: 'absolute',
+    right: 0,
+    alignItems: "center",
+  },
+  button: {
+    backgroundColor: "#2E8B57",
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 5,
+    marginBottom: 10,
+  },
+  buttonText: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "bold",
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+  },
+  modalContent: {
+    backgroundColor: "#fff",
+    padding: 20,
+    borderRadius: 10,
+    alignItems: "center",
+    width: "80%",
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: "bold",
+    marginBottom: 20,
+  },
+  modalText: {
+    fontSize: 18,
+    marginBottom: 10,
+    textAlign: "center",
+  },
+  modalCheckboxContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 20,
+    marginBottom: 10,
+  },
+  modalCheckboxLabel: {
+    fontSize: 16,
+    marginLeft: 10,
+  },
+  modalButton: {
+    backgroundColor: "#2E8B57",
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 5,
+    marginTop: 20,
+  },
+  modalButtonText: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "bold",
   },
 });
+
+export default Index;
