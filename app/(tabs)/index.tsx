@@ -6,23 +6,40 @@ import * as Notifications from "expo-notifications";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Checkbox } from "react-native-paper";
 
+interface CachedPosition extends Location.LocationObject {
+  timestamp: number;
+}
+
 const Index = () => {
-  const [userLocation, setUserLocation] = useState(null);
-  const [errorMsg, setErrorMsg] = useState(null);
+  const [userLocation, setUserLocation] = useState<Location.LocationObject | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(true);
   const [dontAskAgain, setDontAskAgain] = useState(false);
+  const [cachedPosition, setCachedPosition] = useState<CachedPosition | null>(null);
 
   useEffect(() => {
     const requestLocationPermission = async () => {
       try {
+        if (cachedPosition && Date.now() - cachedPosition.timestamp < 60000) {
+          // Use the cached position if it's less than 1 minute old
+          setUserLocation(cachedPosition);
+          return;
+        }
+
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== "granted") {
           setErrorMsg("Permission to access location was denied");
           return;
         }
 
-        const currentLocation = await Location.getCurrentPositionAsync({});
-        setUserLocation(currentLocation.coords);
+        const currentLocation = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Highest,
+        });
+        setUserLocation(currentLocation);
+        setCachedPosition({
+          ...currentLocation,
+          timestamp: Date.now(),
+        });
       } catch (error) {
         setErrorMsg("Error retrieving location");
         console.error("Error retrieving location:", error);
@@ -78,13 +95,19 @@ const Index = () => {
         <MapView
           style={styles.map}
           initialRegion={{
-            latitude: userLocation.latitude,
-            longitude: userLocation.longitude,
+            latitude: userLocation.coords.latitude,
+            longitude: userLocation.coords.longitude,
             latitudeDelta: 0.0922,
             longitudeDelta: 0.0421,
           }}
         >
-          <Marker coordinate={userLocation} title="You are here" />
+          <Marker
+            coordinate={{
+              latitude: userLocation.coords.latitude,
+              longitude: userLocation.coords.longitude,
+            }}
+            pinColor="#2E8B57"
+          />
         </MapView>
       ) : (
         <View style={styles.map}>
