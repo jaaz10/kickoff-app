@@ -8,11 +8,11 @@ const Header = () => {
     <BlurView intensity={100} tint="light" style={styles.header}>
       <TouchableOpacity style={styles.appIcon}>
         {/* Replace with your app icon */}
-        <Ionicons name="football" size={24} color="#fff" />
+        <Ionicons name="football" size={24} color="#000" />
       </TouchableOpacity>
       <Text style={styles.headerTitle}>Kickoff</Text>
       <TouchableOpacity style={styles.profileIcon}>
-        <Ionicons name="person-circle-outline" size={24} color="#fff" />
+        <Ionicons name="person-circle-outline" size={24} color="#000" />
       </TouchableOpacity>
     </BlurView>
   );
@@ -23,9 +23,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingVertical: 8,
-    height: 120,
+    height: 110,
     position: "absolute",
     top: 0,
     left: 0,
@@ -36,7 +36,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   headerTitle: {
-    color: "#fff",
+    color: "#000",
     fontSize: 20,
     fontWeight: "bold",
   },
