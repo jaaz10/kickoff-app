@@ -1,69 +1,44 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Modal } from "react-native";
-import MapView, { Marker } from "react-native-maps";
+import MapView, { Marker, Callout } from "react-native-maps";
 import * as Location from "expo-location";
-import * as Notifications from "expo-notifications";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Checkbox } from "react-native-paper";
 
-interface CachedPosition extends Location.LocationObject {
-  timestamp: number;
+const GOOGLE_PLACES_API_KEY = "AIzaSyDsPtpQBt8fTsYdBrLJj3IDKZ5gkLAl6m0";
+
+interface Park {
+  id: string;
+  name: string;
+  latitude: number;
+  longitude: number;
 }
 
 const Index = () => {
-  const [userLocation, setUserLocation] =
-    useState<Location.LocationObject | null>(null);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [userLocation, setUserLocation] = useState(null);
+  const [errorMsg, setErrorMsg] = useState(null);
   const [showModal, setShowModal] = useState(true);
   const [dontAskAgain, setDontAskAgain] = useState(false);
-  const [cachedPosition, setCachedPosition] = useState<CachedPosition | null>(
-    null,
-  );
+  const [nearbyParks, setNearbyParks] = useState<Park[]>([]);
+  const [selectedPark, setSelectedPark] = useState<Park | null>(null);
+  const [showReadyModal, setShowReadyModal] = useState(false);
+  const mapRef = useRef(null);
 
   useEffect(() => {
     const requestLocationPermission = async () => {
       try {
-        if (cachedPosition && Date.now() - cachedPosition.timestamp < 60000) {
-          // Use the cached position if it's less than 1 minute old
-          setUserLocation(cachedPosition);
-          return;
-        }
-
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== "granted") {
-          setErrorMsg("Permission to access location was denied");
+          setErrorMsg("Permission to access location was denied.");
           return;
         }
 
         const currentLocation = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Highest,
+          accuracy: Location.Accuracy.High,
         });
         setUserLocation(currentLocation);
-        setCachedPosition({
-          ...currentLocation,
-          timestamp: Date.now(),
-        });
 
-        // Start watching for location updates
-        const locationSubscription = await Location.watchPositionAsync(
-          {
-            accuracy: Location.Accuracy.Highest,
-            timeInterval: 5000, // Update every 5 seconds
-            distanceInterval: 10, // Update every 10 meters
-          },
-          (location) => {
-            setUserLocation(location);
-            setCachedPosition({
-              ...location,
-              timestamp: Date.now(),
-            });
-          },
-        );
-
-        // Stop watching for location updates when the component unmounts
-        return () => {
-          locationSubscription.remove();
-        };
+        fetchNearbyParks(currentLocation);
       } catch (error) {
         setErrorMsg("Error retrieving location");
         console.error("Error retrieving location:", error);
@@ -86,23 +61,48 @@ const Index = () => {
     checkShowModal();
   }, []);
 
-  const handlePlayNow = async () => {
-    if (userLocation) {
-      try {
-        await Notifications.scheduleNotificationAsync({
-          content: {
-            title: "Playing at the Park",
-            body: "I'm currently playing soccer at this location!",
-            data: { location: userLocation },
-          },
-          trigger: null,
-        });
-        console.log("Notification sent");
-      } catch (error) {
-        console.error("Error sending notification:", error);
+  useEffect(() => {
+    if (userLocation && nearbyParks.length > 0) {
+      const coordinates = [
+        {
+          latitude: userLocation.coords.latitude,
+          longitude: userLocation.coords.longitude,
+        },
+        ...nearbyParks.map((park) => ({
+          latitude: park.latitude,
+          longitude: park.longitude,
+        })),
+      ];
+
+      mapRef.current?.fitToCoordinates(coordinates, {
+        edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
+        animated: true,
+      });
+    }
+  }, [userLocation, nearbyParks]);
+
+  const fetchNearbyParks = async (location) => {
+    try {
+      const { latitude, longitude } = location.coords;
+      const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${latitude},${longitude}&radius=5000&type=park&key=${GOOGLE_PLACES_API_KEY}`;
+
+      const response = await fetch(url);
+      const data = await response.json();
+
+      if (data.status === "OK") {
+        const parks: Park[] = data.results.map((result) => ({
+          id: result.place_id,
+          name: result.name,
+          latitude: result.geometry.location.lat,
+          longitude: result.geometry.location.lng,
+        }));
+
+        setNearbyParks(parks);
+      } else {
+        console.error("Error fetching nearby parks:", data.status);
       }
-    } else {
-      setErrorMsg("Unable to send notification. Please try again.");
+    } catch (error) {
+      console.error("Error fetching nearby parks:", error);
     }
   };
 
@@ -113,10 +113,27 @@ const Index = () => {
     }
   };
 
+  const handleMarkerPress = (park: Park) => {
+    setSelectedPark(park);
+    setShowReadyModal(true);
+  };
+
+  const handleReadyModalClose = () => {
+    setSelectedPark(null);
+    setShowReadyModal(false);
+  };
+
+  const handleReadyToPlay = () => {
+    // Perform actions when the user is ready to play
+    console.log(`User is ready to play at ${selectedPark?.name}`);
+    handleReadyModalClose();
+  };
+
   return (
     <View style={styles.container}>
       {userLocation ? (
         <MapView
+          ref={mapRef}
           style={styles.map}
           initialRegion={{
             latitude: userLocation.coords.latitude,
@@ -131,7 +148,27 @@ const Index = () => {
               longitude: userLocation.coords.longitude,
             }}
             pinColor="#2E8B57"
-          />
+            title="You are here"
+          >
+            <Callout>
+              <Text>You are here</Text>
+            </Callout>
+          </Marker>
+          {nearbyParks.map((park) => (
+            <Marker
+              key={park.id}
+              coordinate={{
+                latitude: park.latitude,
+                longitude: park.longitude,
+              }}
+              pinColor="#2E8B57"
+              onPress={() => handleMarkerPress(park)}
+            >
+              <Callout>
+                <Text>{park.name}</Text>
+              </Callout>
+            </Marker>
+          ))}
         </MapView>
       ) : (
         <View style={styles.map}>
@@ -139,18 +176,15 @@ const Index = () => {
           {errorMsg && <Text style={styles.errorMsg}>{errorMsg}</Text>}
         </View>
       )}
-      <View style={styles.overlay}>
-        <TouchableOpacity style={styles.button} onPress={handlePlayNow}>
-          <Text style={styles.buttonText}>I'm Playing Now!</Text>
-        </TouchableOpacity>
-      </View>
       <Modal visible={showModal} animationType="slide" transparent={true}>
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Welcome to Kickoff!</Text>
-            <Text style={styles.modalText}>1. Select your location</Text>
             <Text style={styles.modalText}>
-              2. Tap "I'm Playing Now!" to send a notification
+              1. Find a nearby park on the map
+            </Text>
+            <Text style={styles.modalText}>
+              2. Tap on a park marker to see its name
             </Text>
             <View style={styles.modalCheckboxContainer}>
               <Checkbox
@@ -164,6 +198,28 @@ const Index = () => {
               onPress={handleCloseModal}
             >
               <Text style={styles.modalButtonText}>Got it!</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+      <Modal visible={showReadyModal} animationType="slide" transparent={true}>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Ready to Play?</Text>
+            <Text style={styles.modalText}>
+              Are you at {selectedPark?.name} and ready to play?
+            </Text>
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={handleReadyToPlay}
+            >
+              <Text style={styles.modalButtonText}>I'm Ready!</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modalButton, styles.modalCancelButton]}
+              onPress={handleReadyModalClose}
+            >
+              <Text style={styles.modalButtonText}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -187,25 +243,6 @@ const styles = StyleSheet.create({
     color: "red",
     fontSize: 16,
     marginTop: 10,
-  },
-  overlay: {
-    position: "absolute",
-    bottom: 20,
-    left: 0,
-    right: 0,
-    alignItems: "center",
-  },
-  button: {
-    backgroundColor: "#2E8B57",
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 5,
-    marginBottom: 10,
-  },
-  buttonText: {
-    color: "#fff",
-    fontSize: 18,
-    fontWeight: "bold",
   },
   modalContainer: {
     flex: 1,
@@ -251,6 +288,10 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 18,
     fontWeight: "bold",
+  },
+  modalCancelButton: {
+    backgroundColor: "#ccc",
+    marginTop: 10,
   },
 });
 
