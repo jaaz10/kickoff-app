@@ -6,10 +6,13 @@ import {
   TouchableOpacity,
   StyleSheet,
 } from "react-native";
+import { useHeaderHeight } from "@react-navigation/elements";
 
 const ChatTab: React.FC = () => {
+  const headerHeight = useHeaderHeight();
+
   return (
-    <View style={styles.chatTab}>
+    <View style={[styles.chatTab, { paddingTop: headerHeight }]}>
       <View style={styles.chatHeader}>
         <Text style={styles.headerText}>Chat</Text>
       </View>
@@ -41,8 +44,7 @@ const ChatTab: React.FC = () => {
 
 const styles = StyleSheet.create({
   chatTab: {
-    width: "100%",
-    height: "100%",
+    flex: 1,
     borderWidth: 1,
     borderColor: "#ccc",
     borderRadius: 5,

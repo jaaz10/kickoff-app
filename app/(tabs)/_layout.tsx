@@ -17,6 +17,15 @@ export default function TabLayout() {
         screenOptions={{
           tabBarActiveTintColor: Colors[colorScheme ?? "light"].tint,
           headerShown: false,
+          tabBarStyle: {
+            height: 75,
+          },
+          tabBarLabelStyle: {
+            marginBottom: 20,
+          },
+          tabBarIconStyle: {
+            marginTop: 10,
+          },
         }}
         sceneContainerStyle={styles.sceneContainer}
       >
@@ -52,6 +61,7 @@ export default function TabLayout() {
 const styles = StyleSheet.create({
   sceneContainer: {
     flex: 1,
-    marginTop: 0, // Adjust this value based on the desired header height
+    marginTop: 0,
+    marginBottom: 0, // Adjust this value based on the desired header height
   },
 });

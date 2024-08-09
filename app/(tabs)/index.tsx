@@ -11,11 +11,14 @@ interface CachedPosition extends Location.LocationObject {
 }
 
 const Index = () => {
-  const [userLocation, setUserLocation] = useState<Location.LocationObject | null>(null);
+  const [userLocation, setUserLocation] =
+    useState<Location.LocationObject | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(true);
   const [dontAskAgain, setDontAskAgain] = useState(false);
-  const [cachedPosition, setCachedPosition] = useState<CachedPosition | null>(null);
+  const [cachedPosition, setCachedPosition] = useState<CachedPosition | null>(
+    null,
+  );
 
   useEffect(() => {
     const requestLocationPermission = async () => {
@@ -40,6 +43,27 @@ const Index = () => {
           ...currentLocation,
           timestamp: Date.now(),
         });
+
+        // Start watching for location updates
+        const locationSubscription = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.Highest,
+            timeInterval: 5000, // Update every 5 seconds
+            distanceInterval: 10, // Update every 10 meters
+          },
+          (location) => {
+            setUserLocation(location);
+            setCachedPosition({
+              ...location,
+              timestamp: Date.now(),
+            });
+          },
+        );
+
+        // Stop watching for location updates when the component unmounts
+        return () => {
+          locationSubscription.remove();
+        };
       } catch (error) {
         setErrorMsg("Error retrieving location");
         console.error("Error retrieving location:", error);
