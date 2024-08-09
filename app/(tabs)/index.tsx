@@ -12,7 +12,7 @@ import * as Location from "expo-location";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Checkbox } from "react-native-paper";
 
-const GOOGLE_PLACES_API_KEY = "AIzaSyDsPtpQBt8fTsYdBrLJj3IDKZ5gkLAl6m0";
+const GOOGLE_PLACES_API_KEY = "API Here";
 
 interface Park {
   id: string;
