@@ -1,5 +1,12 @@
 import React, { useEffect, useState, useRef } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Modal } from "react-native";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Modal,
+  Alert,
+} from "react-native";
 import MapView, { Marker, Callout } from "react-native-maps";
 import * as Location from "expo-location";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -126,7 +133,14 @@ const Index = () => {
   const handleReadyToPlay = () => {
     // Perform actions when the user is ready to play
     console.log(`User is ready to play at ${selectedPark?.name}`);
-    handleReadyModalClose();
+
+    // Show the notification using Alert
+    Alert.alert(
+      "Notification Sent",
+      "You have successfully sent the notification!",
+      [{ text: "OK", onPress: handleReadyModalClose }],
+      { cancelable: false },
+    );
   };
 
   return (
